@@ -1,3 +1,21 @@
+"""
+This script defines the DataValidation class, an essential component of the machine learning pipeline responsible for ensuring the quality and integrity of the data before it proceeds to the transformation and training stages.
+
+The primary functions of the DataValidation class are:
+- To take the `DataIngestionArtifact` as input, which contains the paths to the raw training and testing datasets.
+- To read a predefined schema from a YAML file. This schema specifies the expected data structure, including the column names, and types (numerical, categorical).
+- To perform a series of validation checks on both the training and testing datasets against this schema. These checks include:
+  - Validating the total number of columns.
+  - Verifying the existence of all expected numerical and categorical columns.
+- To aggregate any discrepancies or errors found during validation into a comprehensive error message.
+- To generate a `DataValidationArtifact` which encapsulates the outcome of the validation process. This artifact includes:
+  - A boolean `validation_status` flag, which is true if the data is valid and false otherwise.
+  - A `message` string containing details about any validation failures.
+  - The file path to a detailed `validation_report.json` file.
+- To write the validation report to a JSON file, providing a persistent record of the validation results for auditing and debugging purposes.
+
+If the validation is successful, the pipeline proceeds to the next stage (data transformation). If not, the pipeline can be configured to stop, preventing corrupted or unexpected data from being used for model training.
+"""
 import json
 import sys
 import os

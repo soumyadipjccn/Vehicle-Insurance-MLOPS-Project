@@ -1,3 +1,23 @@
+"""
+This script defines the DataTransformation class, which is a key component of the machine learning pipeline. Its primary responsibility is to preprocess and transform the raw data into a format suitable for model training.
+
+The data transformation process includes several steps:
+- Reading the raw training and testing data from the artifacts of the data ingestion stage.
+- Applying a series of custom transformations, including:
+  - Mapping categorical features (like 'Gender') to numerical values.
+  - Dropping unnecessary columns (e.g., 'id').
+  - Creating dummy variables for other categorical features.
+  - Renaming columns to be more descriptive or to avoid issues with certain characters.
+- Building and applying a preprocessing pipeline using scikit-learn's `ColumnTransformer`. This pipeline can include steps like:
+  - Scaling numerical features using `StandardScaler`.
+  - Scaling other numerical features using `MinMaxScaler`.
+- Handling class imbalance in the target variable using techniques like SMOTEENN (a combination of SMOTE and Edited Nearest Neighbors).
+- Saving the fitted preprocessing object (transformer) to a file. This object can be used later for transforming new data during prediction.
+- Saving the transformed training and testing datasets as numpy arrays.
+- Returning a `DataTransformationArtifact` containing the paths to the saved transformer object and the transformed data arrays.
+
+This component ensures that the data is clean, consistent, and properly formatted before being fed into the model training stage.
+"""
 import sys
 import numpy as np
 import pandas as pd

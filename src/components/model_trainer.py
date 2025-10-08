@@ -1,3 +1,20 @@
+"""
+This script defines the ModelTrainer class, which is a crucial component of the machine learning pipeline responsible for training the model.
+
+The primary functions of the ModelTrainer class are:
+- To take the `DataTransformationArtifact` as input, which contains the paths to the transformed training and testing data, as well as the preprocessing object.
+- To load the transformed, preprocessed, and resampled (e.g., via SMOTEENN) training and testing data arrays.
+- To initialize a machine learning model with hyperparameters specified in the `ModelTrainerConfig`. In this case, a `RandomForestClassifier` is used.
+- To train the model on the training data.
+- To evaluate the performance of the trained model on the test data by calculating various classification metrics, such as accuracy, F1-score, precision, and recall.
+- To encapsulate these metrics within a `ClassificationMetricArtifact`.
+- To perform a quality check by ensuring the model's accuracy on the training data meets a predefined `expected_accuracy` threshold.
+- To combine the trained model with the preprocessing object (loaded from the data transformation artifact) into a single, serializable `MyModel` object. This practice is crucial for production, as it ensures that the exact same preprocessing steps are applied to new data before prediction.
+- To save this final, combined model object to a file.
+- To generate and return a `ModelTrainerArtifact`, which contains the file path to the trained model and the `ClassificationMetricArtifact`.
+
+This component bridges the gap between data preparation and model evaluation, producing a trained and packaged model that is ready for the next stages of the pipeline.
+"""
 import sys
 from typing import Tuple
 

@@ -1,78 +1,67 @@
-name: CI/CD - Deploy to GCP VM
+name: Deploy Application Docker Image to GCP VM
 
 on:
   push:
-    branches:
-      - main
-
-env:
-  IMAGE_NAME: myapp
-  IMAGE_TAG: latest
-  REGION: us-central1
-  REPO_NAME: my-app-repo
+    branches: [main]
 
 jobs:
-  # -------------------------------
-  # Continuous Integration
-  # -------------------------------
-  build-and-push:
+  Continuous-Integration:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up GCP CLI
+      - name: Set up gcloud CLI
         uses: google-github-actions/setup-gcloud@v2
         with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
           service_account_key: ${{ secrets.GCP_SA_KEY }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
           export_default_credentials: true
 
-      - name: Configure Docker for Artifact Registry
-        run: |
-          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+      - name: Configure Docker to use gcloud as a credential helper
+        run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
 
-      - name: Build Docker image
-        run: |
-          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
-          docker build -t $IMAGE .
-          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
-
-      - name: Push Docker image to Artifact Registry
-        run: |
-          docker push $IMAGE
-
-  # -------------------------------
-  # Continuous Deployment
-  # -------------------------------
-  deploy:
-    needs: build-and-push
-    runs-on: self-hosted  # Your GCP VM registered as GitHub runner
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up GCP CLI
-        uses: google-github-actions/setup-gcloud@v2
-        with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
-          service_account_key: ${{ secrets.GCP_SA_KEY }}
-          export_default_credentials: true
-
-      - name: Configure Docker for Artifact Registry
-        run: |
-          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
-
-      - name: Pull and run Docker container
+      - name: Build and push Docker image to Artifact Registry
         env:
-          IMAGE: ${{ env.IMAGE }}
-          MONGODB_URL: ${{ secrets.MONGODB_URL }}
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          REGION: ${{ secrets.GCP_REGION }}
+          REPO: ${{ secrets.GCP_ARTIFACT_REPO }}
+          IMAGE: app
         run: |
-          docker pull $IMAGE
-          docker stop ${{ env.IMAGE_NAME }} || true
-          docker rm ${{ env.IMAGE_NAME }} || true
-          docker run -d -p 5000:5000 --name ${{ env.IMAGE_NAME }} \
-            -e MONGODB_URL="$MONGODB_URL" \
-            $IMAGE
+          IMAGE_URI="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE:latest"
+          docker build -t "$IMAGE_URI" .
+          docker push "$IMAGE_URI"
+          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+
+  Continuous-Deployment:
+    needs: Continuous-Integration
+    runs-on: self-hosted   # GCP VM runner
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          export_default_credentials: true
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Pull and run Docker container on VM
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          REGION: ${{ secrets.GCP_REGION }}
+          REPO: ${{ secrets.GCP_ARTIFACT_REPO }}
+          IMAGE: app
+        run: |
+          IMAGE_URI="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE:latest"
+          docker pull "$IMAGE_URI"
+          docker stop app || true
+          docker rm app || true
+          docker run -d --name app -p 5000:5000 \
+            -e MONGODB_URL="${{ secrets.MONGODB_URL }}" \
+            "$IMAGE_URI"

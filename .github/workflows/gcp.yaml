@@ -44,7 +44,7 @@ jobs:
           echo "IMAGE_URI: $IMAGE_URI"
           docker build -t "$IMAGE_URI" .
           docker push "$IMAGE_URI"
-          echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+          echo "::set-output name=image_uri::$IMAGE_URI"
 
   Continuous-Deployment:
     needs: Continuous

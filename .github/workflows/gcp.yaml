@@ -45,14 +45,12 @@ jobs:
           echo "IMAGE_URI: $IMAGE_URI"
           docker build -t "$IMAGE_URI" .
           docker push "$IMAGE_URI"
-          echo "::set-output name=image_uri::$IMAGE_URI"
+          echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
 
   Continuous-Deployment:
     needs: Continuous
     runs-on: self-hosted   # This runs on your GCP VM
     steps:
-      - name: Debug outputs
-        run: echo "IMAGE_URI from needs: ${{ needs.Continuous.outputs.IMAGE_URI }}"
       - name: Checkout repository
         uses: actions/checkout@v3
 

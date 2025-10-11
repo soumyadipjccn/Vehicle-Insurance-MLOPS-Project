@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       IMAGE_URI: ${{ steps.build-image.outputs.image_uri }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -24,6 +25,9 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
+      - name: Display authenticated account
+        run: gcloud auth list
+
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
 
@@ -36,17 +40,50 @@ jobs:
           IMAGE: app
         run: |
           IMAGE_URI="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE:latest"
-          echo "IMAGE_URI: $IMAGE_URI"
+          echo "🧱 Building and pushing image: $IMAGE_URI"
           docker build -t "$IMAGE_URI" .
           docker push "$IMAGE_URI"
           echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+          echo "$IMAGE_URI" > image_uri.txt
+
+      - name: Upload image URI (fallback)
+        uses: actions/upload-artifact@v4
+        with:
+          name: image_uri
+          path: image_uri.txt
 
   Continuous-Deployment:
     needs: Continuous
-    runs-on: self-hosted
+    runs-on: self-hosted  # Your GCP VM runner
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+
+      # Try to get IMAGE_URI from outputs
+      - name: Set IMAGE_URI from CI job
+        run: echo "IMAGE_URI=${{ needs.Continuous.outputs.IMAGE_URI }}" >> $GITHUB_ENV
+
+      # Fallback: download from artifact if outputs failed
+      - name: Download image URI (fallback)
+        uses: actions/download-artifact@v4
+        with:
+          name: image_uri
+        continue-on-error: true
+
+      - name: Load IMAGE_URI (if fallback used)
+        run: |
+          if [ -f image_uri.txt ]; then
+            echo "IMAGE_URI=$(cat image_uri.txt)" >> $GITHUB_ENV
+          fi
+
+      - name: Debug print IMAGE_URI
+        run: |
+          echo "🔍 Checking IMAGE_URI..."
+          echo "IMAGE_URI: $IMAGE_URI"
+          if [ -z "$IMAGE_URI" ]; then
+            echo "❌ IMAGE_URI is empty. Deployment cannot continue."
+            exit 1
+          fi
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -63,10 +100,12 @@ jobs:
 
       - name: Pull and run Docker container on VM
         env:
-          IMAGE_URI: ${{ needs.Continuous.outputs.IMAGE_URI }}
+          IMAGE_URI: ${{ env.IMAGE_URI }}
           MONGODB_URL: ${{ secrets.MONGODB_URL }}
         run: |
+          echo "🚀 Deploying container..."
           echo "IMAGE_URI in deployment job: $IMAGE_URI"
+          IMAGE_URI=$(echo "$IMAGE_URI" | tr -d '\n' | xargs)
           docker pull "$IMAGE_URI"
           docker stop app || true
           docker rm app || true

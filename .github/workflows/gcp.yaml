@@ -25,9 +25,6 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      - name: Display authenticated account
-        run: gcloud auth list
-
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
 
@@ -59,11 +56,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Try to get IMAGE_URI from outputs
+      # Get IMAGE_URI from outputs or fallback
       - name: Set IMAGE_URI from CI job
         run: echo "IMAGE_URI=${{ needs.Continuous.outputs.IMAGE_URI }}" >> $GITHUB_ENV
 
-      # Fallback: download from artifact if outputs failed
       - name: Download image URI (fallback)
         uses: actions/download-artifact@v4
         with:
@@ -102,13 +98,18 @@ jobs:
         env:
           IMAGE_URI: ${{ env.IMAGE_URI }}
           MONGODB_URL: ${{ secrets.MONGODB_URL }}
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GCP_SA_KEY }}  # <- Pass JSON here
         run: |
           echo "🚀 Deploying container..."
-          echo "IMAGE_URI in deployment job: $IMAGE_URI"
           IMAGE_URI=$(echo "$IMAGE_URI" | tr -d '\n' | xargs)
+
           docker pull "$IMAGE_URI"
           docker stop app || true
           docker rm app || true
+
+          # Run container with mounted credentials
           docker run -d --name app -p 5000:5000 \
             -e MONGODB_URL="$MONGODB_URL" \
+            -e GOOGLE_APPLICATION_CREDENTIALS_JSON="$GOOGLE_APPLICATION_CREDENTIALS_JSON" \
             "$IMAGE_URI"
+        shell: bash

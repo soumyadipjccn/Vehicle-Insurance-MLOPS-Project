@@ -51,7 +51,7 @@ jobs:
     runs-on: self-hosted   # This runs on your GCP VM
     steps:
       - name: Debug outputs
-        run: echo "${{ toJSON(needs.Continuous) }}"
+        run: echo "IMAGE_URI from needs: ${{ needs.Continuous.outputs.IMAGE_URI }}"
       - name: Checkout repository
         uses: actions/checkout@v3
 

@@ -2,24 +2,27 @@ name: CI/CD - Deploy to GCP VM
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 
 env:
   IMAGE_NAME: myapp
   IMAGE_TAG: latest
+  REGION: us-central1
+  REPO_NAME: my-app-repo
 
 jobs:
   # -------------------------------
   # Continuous Integration
   # -------------------------------
-  CI:
+  build-and-push:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up gcloud CLI
+      - name: Set up GCP CLI
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
@@ -28,31 +31,30 @@ jobs:
 
       - name: Configure Docker for Artifact Registry
         run: |
-          gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
 
-      - name: Build, tag, and push Docker image
-        env:
-          GAR_LOCATION: ${{ secrets.GCP_REGION }}-docker.pkg.dev
-          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          REPO_NAME: ${{ secrets.GAR_REPOSITORY }}
+      - name: Build Docker image
         run: |
-          IMAGE="$GAR_LOCATION/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$IMAGE_TAG"
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
           docker build -t $IMAGE .
-          docker push $IMAGE
           echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+      - name: Push Docker image to Artifact Registry
+        run: |
+          docker push $IMAGE
 
   # -------------------------------
   # Continuous Deployment
   # -------------------------------
-  CD:
-    needs: CI
-    runs-on: ubuntu-latest  # Or your self-hosted GCP VM runner
+  deploy:
+    needs: build-and-push
+    runs-on: self-hosted  # Your GCP VM registered as GitHub runner
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up gcloud CLI
+      - name: Set up GCP CLI
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
@@ -61,17 +63,16 @@ jobs:
 
       - name: Configure Docker for Artifact Registry
         run: |
-          gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
 
       - name: Pull and run Docker container
         env:
           IMAGE: ${{ env.IMAGE }}
           MONGODB_URL: ${{ secrets.MONGODB_URL }}
         run: |
-          echo "Deploying image: $IMAGE"
-          docker stop $IMAGE_NAME || true
-          docker rm $IMAGE_NAME || true
           docker pull $IMAGE
-          docker run -d -p 5000:5000 --name $IMAGE_NAME \
+          docker stop ${{ env.IMAGE_NAME }} || true
+          docker rm ${{ env.IMAGE_NAME }} || true
+          docker run -d -p 5000:5000 --name ${{ env.IMAGE_NAME }} \
             -e MONGODB_URL="$MONGODB_URL" \
             $IMAGE

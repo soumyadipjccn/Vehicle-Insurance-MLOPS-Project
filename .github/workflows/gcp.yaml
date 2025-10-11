@@ -50,6 +50,8 @@ jobs:
     needs: Continuous
     runs-on: self-hosted   # This runs on your GCP VM
     steps:
+      - name: Debug outputs
+        run: echo "${{ toJSON(needs.Continuous) }}"
       - name: Checkout repository
         uses: actions/checkout@v3
 

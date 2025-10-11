@@ -11,9 +11,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up gcloud CLI
+      - name: Set up gcloud CLI (CI with JSON key)
         uses: google-github-actions/setup-gcloud@v2
         with:
+          service_account_key: ${{ secrets.GCP_SA_KEY }}   # JSON key
           project_id: ${{ secrets.GCP_PROJECT_ID }}
           export_default_credentials: true
 
@@ -34,12 +35,12 @@ jobs:
 
   Continuous-Deployment:
     needs: Continuous-Integration
-    runs-on: self-hosted   # Runs on your GCP VM
+    runs-on: self-hosted   # This runs on your GCP VM
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up gcloud CLI
+      - name: Set up gcloud CLI (VM uses attached service account)
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}

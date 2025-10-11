@@ -8,6 +8,9 @@ on:
 jobs:
   Continuous:
     runs-on: ubuntu-latest
+    outputs:
+      image_uri: ${{ steps.build-image.outputs.image_uri }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -43,18 +46,15 @@ jobs:
           echo "IMAGE_URI: $IMAGE_URI"
           docker build -t "$IMAGE_URI" .
           docker push "$IMAGE_URI"
-          echo "$IMAGE_URI" > image_uri.txt
+          echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+          echo "✅ Successfully pushed image: $IMAGE_URI"
 
   Continuous-Deployment:
     needs: Continuous
-    runs-on: self-hosted   # This runs on your GCP VM
+    runs-on: self-hosted   # Your GCP VM runner
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-
-      - name: Get IMAGE_URI from file
-        id: get-image-uri
-        run: echo "IMAGE_URI=$(cat image_uri.txt)" >> $GITHUB_ENV
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -71,12 +71,13 @@ jobs:
 
       - name: Pull and run Docker container on VM
         env:
-          IMAGE_URI: ${{ env.IMAGE_URI }}
+          IMAGE_URI: ${{ needs.Continuous.outputs.image_uri }}
+          MONGODB_URL: ${{ secrets.MONGODB_URL }}
         run: |
           echo "IMAGE_URI in deployment job: $IMAGE_URI"
           docker pull "$IMAGE_URI"
           docker stop app || true
           docker rm app || true
           docker run -d --name app -p 5000:5000 \
-            -e MONGODB_URL="${{ secrets.MONGODB_URL }}" \
+            -e MONGODB_URL="$MONGODB_URL" \
             "$IMAGE_URI"

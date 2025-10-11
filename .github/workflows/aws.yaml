@@ -1,8 +1,12 @@
-name: Deploy Application Docker Image to GCP VM
+name: CI/CD - Deploy Application to GCP VM
 
 on:
   push:
     branches: [main]
+
+env:
+  IMAGE_NAME: myapp
+  IMAGE_TAG: latest
 
 jobs:
   # -------------------------------
@@ -31,19 +35,18 @@ jobs:
           GAR_LOCATION: ${{ secrets.GCP_REGION }}-docker.pkg.dev
           PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           REPO_NAME: ${{ secrets.GAR_REPOSITORY }}
-          IMAGE_NAME: myapp
-          IMAGE_TAG: latest
         run: |
-          docker build -t $GAR_LOCATION/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$IMAGE_TAG .
-          docker push $GAR_LOCATION/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$IMAGE_TAG
-          echo "IMAGE=$GAR_LOCATION/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$IMAGE_TAG" >> $GITHUB_ENV
+          IMAGE="$GAR_LOCATION/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$IMAGE_TAG"
+          docker build -t $IMAGE .
+          docker push $IMAGE
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
 
   # -------------------------------
   # Continuous Deployment
   # -------------------------------
   Continuous-Deployment:
     needs: Continuous-Integration
-    runs-on: self-hosted  # Or your GCP VM registered as a self-hosted runner
+    runs-on: self-hosted  # Your GCP VM registered as GitHub runner
 
     steps:
       - name: Checkout code
@@ -62,15 +65,13 @@ jobs:
 
       - name: Pull and Run Docker Container
         env:
-          GAR_LOCATION: ${{ secrets.GCP_REGION }}-docker.pkg.dev
-          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          REPO_NAME: ${{ secrets.GAR_REPOSITORY }}
-          IMAGE_NAME: myapp
-          IMAGE_TAG: latest
+          IMAGE: ${{ env.IMAGE }}
+          MONGODB_URL: ${{ secrets.MONGODB_URL }} # Add this secret in GitHub Secrets
         run: |
-          docker pull $GAR_LOCATION/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$IMAGE_TAG
-          docker stop myapp || true
-          docker rm myapp || true
-          docker run -d -p 5000:5000 --name myapp \
-            -e MONGODB_URL="mongodb://host.docker.internal:27017" \
-            $GAR_LOCATION/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$IMAGE_TAG
+          echo "Deploying image: $IMAGE"
+          docker pull $IMAGE
+          docker stop $IMAGE_NAME || true
+          docker rm $IMAGE_NAME || true
+          docker run -d -p 5000:5000 --name $IMAGE_NAME \
+            -e MONGODB_URL="$MONGODB_URL" \
+            $IMAGE

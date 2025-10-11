@@ -1,4 +1,4 @@
-name: CI/CD - Deploy Application to GCP VM
+name: CI/CD - Deploy Application to GCP 
 
 on:
   push:

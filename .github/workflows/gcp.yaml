@@ -8,8 +8,6 @@ on:
 jobs:
   Continuous:
     runs-on: ubuntu-latest
-    outputs:
-      IMAGE_URI: ${{ steps.build-image.outputs.image_uri }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -45,7 +43,7 @@ jobs:
           echo "IMAGE_URI: $IMAGE_URI"
           docker build -t "$IMAGE_URI" .
           docker push "$IMAGE_URI"
-          echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+          echo "$IMAGE_URI" > image_uri.txt
 
   Continuous-Deployment:
     needs: Continuous
@@ -53,6 +51,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+
+      - name: Get IMAGE_URI from file
+        id: get-image-uri
+        run: echo "IMAGE_URI=$(cat image_uri.txt)" >> $GITHUB_ENV
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -69,7 +71,7 @@ jobs:
 
       - name: Pull and run Docker container on VM
         env:
-          IMAGE_URI: ${{ needs.Continuous.outputs.IMAGE_URI }}
+          IMAGE_URI: ${{ env.IMAGE_URI }}
         run: |
           echo "IMAGE_URI in deployment job: $IMAGE_URI"
           docker pull "$IMAGE_URI"

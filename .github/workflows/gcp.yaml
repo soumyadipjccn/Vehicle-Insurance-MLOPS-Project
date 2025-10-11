@@ -3,6 +3,7 @@ name: Deploy Application Docker Image to GCP VM
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   Continuous:

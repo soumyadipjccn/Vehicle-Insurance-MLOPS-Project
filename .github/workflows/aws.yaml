@@ -6,19 +6,20 @@ on:
 
 env:
   IMAGE_NAME: myapp
+  IMAGE_TAG: latest
 
 jobs:
   # -------------------------------
-  # Continuous Integration (CI)
+  # Continuous Integration
   # -------------------------------
-  Continuous-Integration:
+  build-and-push:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up gcloud CLI
+      - name: Set up GCP CLI
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
@@ -29,50 +30,39 @@ jobs:
         run: |
           gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev
 
-      - name: Build, tag, and push Docker image
-        env:
-          GAR_LOCATION: ${{ secrets.GCP_REGION }}-docker.pkg.dev
-          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          REPO_NAME: ${{ secrets.GAR_REPOSITORY }}
-          IMAGE_TAG: ${{ github.sha }}
+      - name: Build and push Docker image
         run: |
-          IMAGE="$GAR_LOCATION/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$IMAGE_TAG"
+          IMAGE="${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/my-app-repo/${IMAGE_NAME}:${IMAGE_TAG}"
           docker build -t $IMAGE .
           docker push $IMAGE
           echo "IMAGE=$IMAGE" >> $GITHUB_ENV
 
   # -------------------------------
-  # Continuous Deployment (CD)
+  # Continuous Deployment
   # -------------------------------
-  Continuous-Deployment:
-    needs: Continuous-Integration
+  deploy-to-vm:
+    needs: build-and-push
     runs-on: self-hosted  # Your GCP VM registered as GitHub runner
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up gcloud CLI
+      - name: Set up GCP CLI
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
           service_account_key: ${{ secrets.GCP_SA_KEY }}
           export_default_credentials: true
 
-      - name: Configure Docker for Artifact Registry
-        run: |
-          gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev
-
-      - name: Pull and Run Docker Container
+      - name: Pull and run Docker container
         env:
           IMAGE: ${{ env.IMAGE }}
-          IMAGE_NAME: ${{ env.IMAGE_NAME }}
-          MONGODB_URL: ${{ secrets.MONGODB_URL }}
+          MONGODB_URL: ${{ secrets.MONGODB_URL }} # Add this in GitHub secrets
         run: |
           echo "Deploying image: $IMAGE"
           docker stop $IMAGE_NAME || true
           docker rm $IMAGE_NAME || true
-          docker pull $IMAGE
           docker run -d -p 5000:5000 --name $IMAGE_NAME \
             -e MONGODB_URL="$MONGODB_URL" \
             $IMAGE

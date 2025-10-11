@@ -6,11 +6,10 @@ on:
 
 env:
   IMAGE_NAME: myapp
-  IMAGE_TAG: latest
 
 jobs:
   # -------------------------------
-  # Continuous Integration
+  # Continuous Integration (CI)
   # -------------------------------
   Continuous-Integration:
     runs-on: ubuntu-latest
@@ -35,6 +34,7 @@ jobs:
           GAR_LOCATION: ${{ secrets.GCP_REGION }}-docker.pkg.dev
           PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           REPO_NAME: ${{ secrets.GAR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           IMAGE="$GAR_LOCATION/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$IMAGE_TAG"
           docker build -t $IMAGE .
@@ -42,7 +42,7 @@ jobs:
           echo "IMAGE=$IMAGE" >> $GITHUB_ENV
 
   # -------------------------------
-  # Continuous Deployment
+  # Continuous Deployment (CD)
   # -------------------------------
   Continuous-Deployment:
     needs: Continuous-Integration
@@ -66,12 +66,13 @@ jobs:
       - name: Pull and Run Docker Container
         env:
           IMAGE: ${{ env.IMAGE }}
-          MONGODB_URL: ${{ secrets.MONGODB_URL }} # Add this secret in GitHub Secrets
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          MONGODB_URL: ${{ secrets.MONGODB_URL }}
         run: |
           echo "Deploying image: $IMAGE"
-          docker pull $IMAGE
           docker stop $IMAGE_NAME || true
           docker rm $IMAGE_NAME || true
+          docker pull $IMAGE
           docker run -d -p 5000:5000 --name $IMAGE_NAME \
             -e MONGODB_URL="$MONGODB_URL" \
             $IMAGE

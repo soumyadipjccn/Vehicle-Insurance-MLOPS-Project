@@ -73,6 +73,7 @@ jobs:
         env:
           IMAGE_URI: ${{ needs.Continuous.outputs.IMAGE_URI }}
         run: |
+          echo "IMAGE_URI in deployment job: $IMAGE_URI"
           docker pull "$IMAGE_URI"
           docker stop app || true
           docker rm app || true

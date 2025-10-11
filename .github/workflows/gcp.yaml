@@ -9,8 +9,7 @@ jobs:
   Continuous:
     runs-on: ubuntu-latest
     outputs:
-      image_uri: ${{ steps.build-image.outputs.image_uri }}
-
+      IMAGE_URI: ${{ steps.build-image.outputs.image_uri }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -25,9 +24,6 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      - name: Display authenticated account
-        run: gcloud auth list
-
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
 
@@ -39,19 +35,15 @@ jobs:
           REPO: ${{ secrets.GCP_ARTIFACT_REPO }}
           IMAGE: app
         run: |
-          echo "PROJECT_ID: $PROJECT_ID"
-          echo "REGION: $REGION"
-          echo "REPO: $REPO"
           IMAGE_URI="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE:latest"
           echo "IMAGE_URI: $IMAGE_URI"
           docker build -t "$IMAGE_URI" .
           docker push "$IMAGE_URI"
           echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
-          echo "✅ Successfully pushed image: $IMAGE_URI"
 
   Continuous-Deployment:
     needs: Continuous
-    runs-on: self-hosted   # Your GCP VM runner
+    runs-on: self-hosted
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -71,7 +63,7 @@ jobs:
 
       - name: Pull and run Docker container on VM
         env:
-          IMAGE_URI: ${{ needs.Continuous.outputs.image_uri }}
+          IMAGE_URI: ${{ needs.Continuous.outputs.IMAGE_URI }}
           MONGODB_URL: ${{ secrets.MONGODB_URL }}
         run: |
           echo "IMAGE_URI in deployment job: $IMAGE_URI"

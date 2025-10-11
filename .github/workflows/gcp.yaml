@@ -5,7 +5,7 @@ on:
     branches: [main]
 
 jobs:
-  Continuous-Integration:
+  Continuous:
     runs-on: ubuntu-latest
     outputs:
       IMAGE_URI: ${{ steps.build-image.outputs.image_uri }}
@@ -43,7 +43,7 @@ jobs:
           echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
 
   Continuous-Deployment:
-    needs: Continuous-Integration
+    needs: Continuous
     runs-on: self-hosted   # This runs on your GCP VM
     steps:
       - name: Checkout repository
@@ -62,7 +62,7 @@ jobs:
 
       - name: Pull and run Docker container on VM
         env:
-          IMAGE_URI: ${{ needs.Continuous-Integration.outputs.IMAGE_URI }}
+          IMAGE_URI: ${{ needs.Continuous.outputs.IMAGE_URI }}
         run: |
           docker pull "$IMAGE_URI"
           docker stop app || true
